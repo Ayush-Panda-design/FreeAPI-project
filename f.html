@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Auth App</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen">
+
+<div class="w-full max-w-md bg-slate-800 p-6 rounded-xl">
+
+  <!-- Tabs -->
+  <div class="flex mb-4">
+    <button id="loginTab" class="flex-1 bg-indigo-600 p-2 rounded-l">Login</button>
+    <button id="registerTab" class="flex-1 bg-slate-700 p-2 rounded-r">Register</button>
+  </div>
+
+  <!-- LOGIN -->
+  <form id="loginForm" class="space-y-3">
+    <input name="username" placeholder="Username" required class="w-full p-2 bg-slate-700 rounded">
+    <input name="password" type="password" placeholder="Password" required class="w-full p-2 bg-slate-700 rounded">
+    <button class="w-full bg-indigo-600 p-2 rounded">Login</button>
+  </form>
+
+  <!-- REGISTER -->
+  <form id="registerForm" class="space-y-3 hidden">
+    <input name="username" placeholder="Username" required class="w-full p-2 bg-slate-700 rounded">
+    <input name="email" type="email" placeholder="Email" required class="w-full p-2 bg-slate-700 rounded">
+    <input name="password" type="password" placeholder="Password" required class="w-full p-2 bg-slate-700 rounded">
+    <select name="role" class="w-full p-2 bg-slate-700 rounded">
+      <option value="USER">USER</option>
+      <option value="ADMIN">ADMIN</option>
+    </select>
+    <button class="w-full bg-indigo-600 p-2 rounded">Register</button>
+  </form>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden mt-4">
+    <h2 class="text-lg font-bold mb-2">Dashboard</h2>
+    <p id="userInfo">Loading...</p>
+    <button id="logoutBtn" class="mt-3 bg-red-600 p-2 w-full rounded">Logout</button>
+  </div>
+
+  <!-- MESSAGE -->
+  <p id="msg" class="mt-3 text-center text-sm"></p>
+
+</div>
+
+<script>
+const API = "https://api.freeapi.app/api/v1/users";
+const msg = document.getElementById("msg");
+
+function showMsg(text, type="info"){
+  msg.textContent = text;
+  msg.className = "mt-3 text-center text-sm " + (type === "error" ? "text-red-400" : "text-green-400");
+}
+
+/* ---------- API ---------- */
+async function api(path, method="GET", body=null){
+  try{
+    const res = await fetch(API + path, {
+      method,
+      credentials: "include",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: body ? JSON.stringify(body) : null
+    });
+
+    const data = await res.json().catch(()=>null);
+
+    if(!res.ok){
+      throw new Error(data?.message || "Request failed");
+    }
+
+    return data;
+  }catch(err){
+    throw new Error(err.message || "Network error");
+  }
+}
+
+/* ---------- Tabs ---------- */
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const dashboard = document.getElementById("dashboard");
+
+document.getElementById("loginTab").onclick = ()=>{
+  loginForm.classList.remove("hidden");
+  registerForm.classList.add("hidden");
+};
+
+document.getElementById("registerTab").onclick = ()=>{
+  registerForm.classList.remove("hidden");
+  loginForm.classList.add("hidden");
+};
+
+/* ---------- LOGIN ---------- */
+loginForm.onsubmit = async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(loginForm);
+
+  try{
+    await api("/login","POST",{
+      username: fd.get("username"),
+      password: fd.get("password")
+    });
+
+    showMsg("Login success");
+    showDashboard();
+
+  }catch(err){
+    showMsg(err.message,"error");
+  }
+};
+
+/* ---------- REGISTER ---------- */
+registerForm.onsubmit = async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(registerForm);
+
+  try{
+    await api("/register","POST",{
+      username: fd.get("username"),
+      email: fd.get("email"),
+      password: fd.get("password"),
+      role: fd.get("role")
+    });
+
+    showMsg("Registered! Now login.");
+    registerForm.reset();
+
+  }catch(err){
+    showMsg(err.message,"error");
+  }
+};
+
+/* ---------- LOAD USER ---------- */
+async function loadUser(){
+  try{
+    const res = await api("/current-user");
+    const user = res.data || res;
+
+    document.getElementById("userInfo").innerHTML = `
+      <p><b>${user.username}</b></p>
+      <p>${user.email}</p>
+      <p>${user.role}</p>
+    `;
+
+  }catch(err){
+    showMsg("Session expired","error");
+    showAuth();
+  }
+}
+
+/* ---------- LOGOUT ---------- */
+document.getElementById("logoutBtn").onclick = async ()=>{
+  try{
+    await api("/logout","POST");
+    showMsg("Logged out");
+  }catch{}
+  showAuth();
+};
+
+/* ---------- UI SWITCH ---------- */
+function showDashboard(){
+  loginForm.classList.add("hidden");
+  registerForm.classList.add("hidden");
+  dashboard.classList.remove("hidden");
+  loadUser();
+}
+
+function showAuth(){
+  dashboard.classList.add("hidden");
+  loginForm.classList.remove("hidden");
+}
+
+/* ---------- INIT ---------- */
+(async ()=>{
+  try{
+    const res = await api("/current-user");
+    if(res){
+      showDashboard();
+    }
+  }catch{}
+})();
+</script>
+
+</body>
+</html>
