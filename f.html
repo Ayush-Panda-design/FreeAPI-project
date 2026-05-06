@@ -2,191 +2,954 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Auth App</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AuthFlow — FreeAPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border-bright: #3d3d3d;
+    --text: #f0ede8;
+    --text-muted: #777;
+    --text-dim: #444;
+    --accent: #e8d5a3;
+    --accent2: #c4a96e;
+    --danger: #e05555;
+    --success: #5bbf8e;
+    --input-bg: #161616;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    font-size: 15px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999; opacity: 0.4;
+  }
+
+  /* ── LAYOUT ── */
+  .app-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr;
+    position: relative;
+  }
+
+  /* ── VIEWS ── */
+  .view { display: none; min-height: 100vh; }
+  .view.active { display: flex; }
+
+  /* ── AUTH VIEW ── */
+  #auth-view {
+    flex-direction: row;
+  }
+
+  .auth-sidebar {
+    width: 420px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 48px 48px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .auth-sidebar::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -80px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(232,213,163,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 60px;
+  }
+
+  .logo span { color: var(--text-dim); }
+
+  .sidebar-headline {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 72px;
+    line-height: 0.9;
+    letter-spacing: 2px;
+    color: var(--text);
+    margin-bottom: 24px;
+  }
+
+  .sidebar-sub {
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.7;
+    max-width: 280px;
+    flex: 1;
+  }
+
+  .sidebar-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+
+  .auth-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 400px;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 40px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 400;
+  }
+
+  .tab-btn:not(.active):hover { background: var(--surface2); color: var(--text); }
+
+  /* ── FORM ── */
+  .form-panel { display: none; animation: fadeUp 0.3s ease; }
+  .form-panel.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .form-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 38px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .form-sub {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+
+  .field {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+
+  input:focus {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 3px rgba(196,169,110,0.1);
+  }
+
+  input::placeholder { color: var(--text-dim); }
+
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── SELECT ── */
+  select {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23777' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    transition: border-color 0.2s;
+  }
+  select:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(196,169,110,0.1); }
+  select option { background: #1a1a1a; }
+
+  /* ── BUTTON ── */
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-primary:hover:not(:disabled) { background: var(--accent2); transform: translateY(-1px); }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-secondary {
+    padding: 9px 18px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--border-bright); color: var(--text); }
+
+  .btn-danger {
+    padding: 9px 18px;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid rgba(224,85,85,0.3);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-danger:hover { background: rgba(224,85,85,0.1); border-color: var(--danger); }
+
+  /* ── LOADER SPINNER ── */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(10,10,10,0.3);
+    border-top-color: var(--bg);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── TOAST ── */
+  #toast-container {
+    position: fixed;
+    bottom: 32px; right: 32px;
+    display: flex; flex-direction: column; gap: 10px;
+    z-index: 1000;
+  }
+
+  .toast {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    min-width: 280px; max-width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: slideIn 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .toast::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+
+  .toast.success::before { background: var(--success); }
+  .toast.error::before { background: var(--danger); }
+  .toast.info::before { background: var(--accent); }
+
+  .toast-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .toast-body { flex: 1; }
+  .toast-title { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
+  .toast.success .toast-title { color: var(--success); }
+  .toast.error .toast-title { color: var(--danger); }
+  .toast.info .toast-title { color: var(--accent); }
+  .toast-msg { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
+
+  .toast-dismiss {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 0; flex-shrink: 0;
+  }
+  .toast-dismiss:hover { color: var(--text-muted); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ── DASHBOARD ── */
+  #dashboard-view {
+    flex-direction: column;
+  }
+
+  .dash-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .dash-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: var(--accent);
+  }
+  .dash-logo span { color: var(--text-dim); }
+
+  .dash-header-right { display: flex; align-items: center; gap: 16px; }
+
+  .dash-username {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  .dash-main {
+    flex: 1;
+    padding: 56px 48px;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .dash-greeting {
+    margin-bottom: 48px;
+  }
+
+  .dash-greeting-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .dash-greeting-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .dash-greeting-name em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  /* ── PROFILE CARD ── */
+  .profile-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .profile-card-header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .profile-card-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    background: var(--success);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--success);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .profile-card-body { padding: 28px; }
+
+  .profile-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent2), #8a6a2e);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    color: var(--bg);
+    margin-bottom: 24px;
+    letter-spacing: 1px;
+  }
+
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .profile-field {
+    padding: 16px 20px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .profile-field:nth-child(2n) { border-right: none; }
+  .profile-field:nth-last-child(-n+2) { border-bottom: none; }
+
+  .profile-field-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .profile-field-value {
+    font-size: 14px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .badge-admin { background: rgba(232,213,163,0.15); color: var(--accent); border: 1px solid rgba(232,213,163,0.3); }
+  .badge-user { background: rgba(91,191,142,0.1); color: var(--success); border: 1px solid rgba(91,191,142,0.25); }
+
+  /* ── SESSION CARD ── */
+  .session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 20px;
+  }
+
+  .session-info { flex: 1; }
+  .session-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .session-value {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* ── SKELETON LOADER ── */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+
+  .skel-line { height: 14px; margin-bottom: 10px; }
+  .skel-avatar { width: 64px; height: 64px; border-radius: 50%; margin-bottom: 24px; }
+
+  /* ── REFRESH BTN ── */
+  .btn-refresh {
+    background: none; border: none;
+    color: var(--text-dim); cursor: pointer;
+    font-size: 16px;
+    transition: color 0.2s, transform 0.3s;
+    padding: 6px;
+  }
+  .btn-refresh:hover { color: var(--text-muted); }
+  .btn-refresh.spinning { animation: spin 0.8s linear infinite; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    #auth-view { flex-direction: column; }
+    .auth-sidebar { width: 100%; padding: 32px; min-height: auto; }
+    .sidebar-headline { font-size: 52px; }
+    .auth-main { padding: 32px 24px; }
+    .dash-header { padding: 16px 24px; }
+    .dash-main { padding: 32px 24px; }
+    .dash-greeting-name { font-size: 44px; }
+    .profile-grid { grid-template-columns: 1fr; }
+    .profile-field { border-right: none !important; }
+    .profile-field:last-child { border-bottom: none; }
+    .session-card { flex-direction: column; align-items: flex-start; }
+  }
+</style>
 </head>
+<body>
 
-<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen">
+<div id="toast-container"></div>
 
-<div class="w-full max-w-md bg-slate-800 p-6 rounded-xl">
-
-  <!-- Tabs -->
-  <div class="flex mb-4">
-    <button id="loginTab" class="flex-1 bg-indigo-600 p-2 rounded-l">Login</button>
-    <button id="registerTab" class="flex-1 bg-slate-700 p-2 rounded-r">Register</button>
+<!-- ════════════════════ AUTH VIEW ════════════════════ -->
+<div class="view active" id="auth-view">
+  <div class="auth-sidebar">
+    <div class="logo">AUTH<span>FLOW</span></div>
+    <div class="sidebar-headline">SIGN<br>IN OR<br>JOIN.</div>
+    <p class="sidebar-sub">
+      A complete authentication demo built on FreeAPI. Secure sessions, token management, and live user state — all wired up.
+    </p>
+    <div style="flex:1"></div>
+    <div class="sidebar-counter">FreeAPI · Web Dev Cohort 2026</div>
   </div>
 
-  <!-- LOGIN -->
-  <form id="loginForm" class="space-y-3">
-    <input name="username" placeholder="Username" required class="w-full p-2 bg-slate-700 rounded">
-    <input name="password" type="password" placeholder="Password" required class="w-full p-2 bg-slate-700 rounded">
-    <button class="w-full bg-indigo-600 p-2 rounded">Login</button>
-  </form>
+  <div class="auth-main">
+    <div class="auth-card">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('login')">Login</button>
+        <button class="tab-btn" onclick="switchTab('register')">Register</button>
+      </div>
 
-  <!-- REGISTER -->
-  <form id="registerForm" class="space-y-3 hidden">
-    <input name="username" placeholder="Username" required class="w-full p-2 bg-slate-700 rounded">
-    <input name="email" type="email" placeholder="Email" required class="w-full p-2 bg-slate-700 rounded">
-    <input name="password" type="password" placeholder="Password" required class="w-full p-2 bg-slate-700 rounded">
-    <select name="role" class="w-full p-2 bg-slate-700 rounded">
-      <option value="USER">USER</option>
-      <option value="ADMIN">ADMIN</option>
-    </select>
-    <button class="w-full bg-indigo-600 p-2 rounded">Register</button>
-  </form>
+      <!-- LOGIN PANEL -->
+      <div class="form-panel active" id="panel-login">
+        <div class="form-title">Welcome Back</div>
+        <p class="form-sub">Enter your credentials to continue.</p>
 
-  <!-- DASHBOARD -->
-  <div id="dashboard" class="hidden mt-4">
-    <h2 class="text-lg font-bold mb-2">Dashboard</h2>
-    <p id="userInfo">Loading...</p>
-    <button id="logoutBtn" class="mt-3 bg-red-600 p-2 w-full rounded">Logout</button>
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="field">
+            <label>Username</label>
+            <input type="text" id="login-username" placeholder="your_username" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn-primary" id="login-btn">
+            Continue →
+          </button>
+        </form>
+      </div>
+
+      <!-- REGISTER PANEL -->
+      <div class="form-panel" id="panel-register">
+        <div class="form-title">Create Account</div>
+        <p class="form-sub">Fill in the details to get started.</p>
+
+        <form id="register-form" onsubmit="handleRegister(event)">
+          <div class="field input-row">
+            <div>
+              <label>Username</label>
+              <input type="text" id="reg-username" placeholder="johndoe" required />
+            </div>
+            <div>
+              <label>Role</label>
+              <select id="reg-role">
+                <option value="USER">User</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Email Address</label>
+            <input type="email" id="reg-email" placeholder="john@example.com" required />
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="reg-password" placeholder="Min 8 characters" required />
+          </div>
+          <button type="submit" class="btn-primary" id="register-btn">
+            Create Account →
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
+</div>
 
-  <!-- MESSAGE -->
-  <p id="msg" class="mt-3 text-center text-sm"></p>
+<!-- ════════════════════ DASHBOARD VIEW ════════════════════ -->
+<div class="view" id="dashboard-view">
+  <header class="dash-header">
+    <div class="dash-logo">AUTH<span>FLOW</span></div>
+    <div class="dash-header-right">
+      <span class="dash-username" id="header-username">—</span>
+      <button class="btn-secondary" onclick="fetchCurrentUser()">
+        <span id="refresh-icon" style="display:inline-block; transition: transform 0.4s;">↻</span> Refresh
+      </button>
+      <button class="btn-danger" onclick="handleLogout()">
+        Logout
+      </button>
+    </div>
+  </header>
 
+  <main class="dash-main">
+    <div class="dash-greeting">
+      <div class="dash-greeting-label">Authenticated Session</div>
+      <div class="dash-greeting-name">Hello, <em id="dash-name">—</em></div>
+    </div>
+
+    <div class="profile-card">
+      <div class="profile-card-header">
+        <div class="status-dot"></div>
+        <div class="profile-card-title">Current User Profile</div>
+      </div>
+      <div class="profile-card-body" id="profile-body">
+        <!-- Skeleton or data goes here -->
+        <div class="skel-avatar skeleton"></div>
+        <div class="profile-grid">
+          <div class="profile-field"><div class="skel-line skeleton" style="width:60%"></div><div class="skel-line skeleton" style="width:80%"></div></div>
+          <div class="profile-field"><div class="skel-line skeleton" style="width:60%"></div><div class="skel-line skeleton" style="width:80%"></div></div>
+          <div class="profile-field"><div class="skel-line skeleton" style="width:60%"></div><div class="skel-line skeleton" style="width:80%"></div></div>
+          <div class="profile-field"><div class="skel-line skeleton" style="width:60%"></div><div class="skel-line skeleton" style="width:80%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="session-card" id="session-card">
+      <div class="session-info">
+        <div class="session-label">Session Status</div>
+        <div class="session-value" id="session-time">Calculating…</div>
+      </div>
+      <div class="session-info">
+        <div class="session-label">API Endpoint</div>
+        <div class="session-value" style="font-family:'DM Mono',monospace;font-size:11px;word-break:break-all;">https://api.freeapi.app/api/v1/users/current-user</div>
+      </div>
+    </div>
+  </main>
 </div>
 
 <script>
-const API = "https://api.freeapi.app/api/v1/users";
-const msg = document.getElementById("msg");
+  const API = 'https://api.freeapi.app/api/v1/users';
+  let sessionStart = null;
+  let sessionTimer = null;
 
-function showMsg(text, type="info"){
-  msg.textContent = text;
-  msg.className = "mt-3 text-center text-sm " + (type === "error" ? "text-red-400" : "text-green-400");
-}
+  /* ════ TOAST ════ */
+  function toast(type, title, msg) {
+    const icons = { success: '✓', error: '✕', info: 'ℹ' };
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `
+      <div class="toast-icon">${icons[type] || 'ℹ'}</div>
+      <div class="toast-body">
+        <div class="toast-title">${title}</div>
+        <div class="toast-msg">${msg}</div>
+      </div>
+      <button class="toast-dismiss" onclick="this.parentElement.remove()">×</button>
+    `;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+  }
 
-/* ---------- API ---------- */
-async function api(path, method="GET", body=null){
-  try{
-    const res = await fetch(API + path, {
-      method,
-      credentials: "include",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: body ? JSON.stringify(body) : null
+  /* ════ TAB SWITCH ════ */
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
     });
+    document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${tab}`).classList.add('active');
+  }
 
-    const data = await res.json().catch(()=>null);
+  /* ════ SET LOADING ════ */
+  function setLoading(btnId, loading, defaultText) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.innerHTML = loading
+      ? `<span class="spinner"></span>Processing…`
+      : defaultText;
+  }
 
-    if(!res.ok){
-      throw new Error(data?.message || "Request failed");
+  /* ════ VIEW SWITCH ════ */
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  /* ════ LOGIN ════ */
+  async function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!username || !password) return toast('error', 'Validation', 'Fill in all fields.');
+
+    setLoading('login-btn', true, 'Continue →');
+    try {
+      const res = await fetch(`${API}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Login failed.');
+      toast('success', 'Authenticated', `Welcome back, ${username}!`);
+      sessionStart = Date.now();
+      startSessionTimer();
+      showView('dashboard-view');
+      document.getElementById('header-username').textContent = `@${username}`;
+      document.getElementById('dash-name').textContent = username;
+      fetchCurrentUser();
+    } catch (err) {
+      toast('error', 'Login Failed', err.message);
+    } finally {
+      setLoading('login-btn', false, 'Continue →');
     }
-
-    return data;
-  }catch(err){
-    throw new Error(err.message || "Network error");
   }
-}
 
-/* ---------- Tabs ---------- */
-const loginForm = document.getElementById("loginForm");
-const registerForm = document.getElementById("registerForm");
-const dashboard = document.getElementById("dashboard");
+  /* ════ REGISTER ════ */
+  async function handleRegister(e) {
+    e.preventDefault();
+    const username = document.getElementById('reg-username').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const role = document.getElementById('reg-role').value;
 
-document.getElementById("loginTab").onclick = ()=>{
-  loginForm.classList.remove("hidden");
-  registerForm.classList.add("hidden");
-};
+    if (!username || !email || !password) return toast('error', 'Validation', 'Fill in all fields.');
+    if (password.length < 8) return toast('error', 'Validation', 'Password must be at least 8 characters.');
 
-document.getElementById("registerTab").onclick = ()=>{
-  registerForm.classList.remove("hidden");
-  loginForm.classList.add("hidden");
-};
-
-/* ---------- LOGIN ---------- */
-loginForm.onsubmit = async (e)=>{
-  e.preventDefault();
-  const fd = new FormData(loginForm);
-
-  try{
-    await api("/login","POST",{
-      username: fd.get("username"),
-      password: fd.get("password")
-    });
-
-    showMsg("Login success");
-    showDashboard();
-
-  }catch(err){
-    showMsg(err.message,"error");
+    setLoading('register-btn', true, 'Create Account →');
+    try {
+      const res = await fetch(`${API}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, email, password, role })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Registration failed.');
+      toast('success', 'Account Created', 'You can now login with your credentials.');
+      document.getElementById('register-form').reset();
+      switchTab('login');
+      document.getElementById('login-username').value = username;
+    } catch (err) {
+      toast('error', 'Registration Failed', err.message);
+    } finally {
+      setLoading('register-btn', false, 'Create Account →');
+    }
   }
-};
 
-/* ---------- REGISTER ---------- */
-registerForm.onsubmit = async (e)=>{
-  e.preventDefault();
-  const fd = new FormData(registerForm);
-
-  try{
-    await api("/register","POST",{
-      username: fd.get("username"),
-      email: fd.get("email"),
-      password: fd.get("password"),
-      role: fd.get("role")
-    });
-
-    showMsg("Registered! Now login.");
-    registerForm.reset();
-
-  }catch(err){
-    showMsg(err.message,"error");
+  /* ════ LOGOUT ════ */
+  async function handleLogout() {
+    const btn = document.querySelector('.btn-danger');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner" style="border-top-color:var(--danger)"></span>Logging out…`;
+    try {
+      await fetch(`${API}/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      toast('info', 'Session Ended', 'You have been logged out.');
+    } catch (_) {
+      toast('info', 'Session Ended', 'Logged out locally.');
+    } finally {
+      clearInterval(sessionTimer);
+      sessionStart = null;
+      btn.disabled = false;
+      btn.textContent = 'Logout';
+      showView('auth-view');
+      document.getElementById('login-form').reset();
+      document.getElementById('register-form').reset();
+    }
   }
-};
 
-/* ---------- LOAD USER ---------- */
-async function loadUser(){
-  try{
-    const res = await api("/current-user");
-    const user = res.data || res;
+  /* ════ FETCH USER ════ */
+  async function fetchCurrentUser() {
+    const icon = document.getElementById('refresh-icon');
+    icon.style.animation = 'spin 0.8s linear infinite';
 
-    document.getElementById("userInfo").innerHTML = `
-      <p><b>${user.username}</b></p>
-      <p>${user.email}</p>
-      <p>${user.role}</p>
+    renderProfileSkeleton();
+
+    try {
+      const res = await fetch(`${API}/current-user`, {
+        credentials: 'include'
+      });
+      if (res.status === 401) {
+        toast('error', 'Session Expired', 'Please log in again.');
+        showView('auth-view');
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to fetch user.');
+      renderProfile(data.data?.user || data.data || {});
+    } catch (err) {
+      toast('error', 'Fetch Error', err.message);
+    } finally {
+      icon.style.animation = '';
+    }
+  }
+
+  function renderProfileSkeleton() {
+    document.getElementById('profile-body').innerHTML = `
+      <div class="skel-avatar skeleton"></div>
+      <div class="profile-grid">
+        <div class="profile-field"><div class="skel-line skeleton" style="width:50%"></div><div class="skel-line skeleton" style="width:75%;margin-top:8px"></div></div>
+        <div class="profile-field"><div class="skel-line skeleton" style="width:50%"></div><div class="skel-line skeleton" style="width:75%;margin-top:8px"></div></div>
+        <div class="profile-field"><div class="skel-line skeleton" style="width:50%"></div><div class="skel-line skeleton" style="width:75%;margin-top:8px"></div></div>
+        <div class="profile-field"><div class="skel-line skeleton" style="width:50%"></div><div class="skel-line skeleton" style="width:75%;margin-top:8px"></div></div>
+      </div>
+    `;
+  }
+
+  function renderProfile(user) {
+    const initials = (user.username || 'U').slice(0, 2).toUpperCase();
+    const roleBadge = user.role === 'ADMIN'
+      ? `<span class="badge badge-admin">Admin</span>`
+      : `<span class="badge badge-user">User</span>`;
+    const created = user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' }) : '—';
+    const verified = user.isEmailVerified ? '✓ Verified' : '✗ Not Verified';
+
+    document.getElementById('profile-body').innerHTML = `
+      <div class="profile-avatar">${initials}</div>
+      <div class="profile-grid">
+        <div class="profile-field">
+          <div class="profile-field-label">Username</div>
+          <div class="profile-field-value">@${user.username || '—'}</div>
+        </div>
+        <div class="profile-field">
+          <div class="profile-field-label">Email</div>
+          <div class="profile-field-value">${user.email || '—'}</div>
+        </div>
+        <div class="profile-field">
+          <div class="profile-field-label">Role</div>
+          <div class="profile-field-value">${roleBadge}</div>
+        </div>
+        <div class="profile-field">
+          <div class="profile-field-label">Email Status</div>
+          <div class="profile-field-value">${verified}</div>
+        </div>
+        <div class="profile-field">
+          <div class="profile-field-label">Member Since</div>
+          <div class="profile-field-value">${created}</div>
+        </div>
+        <div class="profile-field">
+          <div class="profile-field-label">User ID</div>
+          <div class="profile-field-value" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${user._id || user.id || '—'}</div>
+        </div>
+      </div>
     `;
 
-  }catch(err){
-    showMsg("Session expired","error");
-    showAuth();
-  }
-}
-
-/* ---------- LOGOUT ---------- */
-document.getElementById("logoutBtn").onclick = async ()=>{
-  try{
-    await api("/logout","POST");
-    showMsg("Logged out");
-  }catch{}
-  showAuth();
-};
-
-/* ---------- UI SWITCH ---------- */
-function showDashboard(){
-  loginForm.classList.add("hidden");
-  registerForm.classList.add("hidden");
-  dashboard.classList.remove("hidden");
-  loadUser();
-}
-
-function showAuth(){
-  dashboard.classList.add("hidden");
-  loginForm.classList.remove("hidden");
-}
-
-/* ---------- INIT ---------- */
-(async ()=>{
-  try{
-    const res = await api("/current-user");
-    if(res){
-      showDashboard();
+    // update header too
+    if (user.username) {
+      document.getElementById('header-username').textContent = `@${user.username}`;
+      document.getElementById('dash-name').textContent = user.username;
     }
-  }catch{}
-})();
-</script>
+  }
 
+  /* ════ SESSION TIMER ════ */
+  function startSessionTimer() {
+    clearInterval(sessionTimer);
+    sessionTimer = setInterval(() => {
+      if (!sessionStart) return;
+      const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+      const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+      const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const s = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('session-time').textContent = `Active — ${h}:${m}:${s}`;
+    }, 1000);
+  }
+</script>
 </body>
 </html>
